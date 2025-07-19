@@ -92,7 +92,13 @@
       <h2>Add/Edit Transaction</h2>
       <input type="text" id="vendor" placeholder="Vendor Name">
       <input type="text" id="amount" placeholder="Amount">
-      <input type="text" id="method" placeholder="Payment Method">
+      <select id="method">
+        <option value="">Select Payment Method</option>
+        <option value="Personal Credit">Personal Credit</option>
+        <option value="Business Debit">Business Debit</option>
+        <option value="Business Credit">Business Credit</option>
+        <option value="Cash">Cash</option>
+      </select>
       <input type="date" id="date">
       <input type="text" id="invoice" placeholder="Invoice Number">
       <textarea id="items" placeholder="Items (comma separated)"></textarea>
