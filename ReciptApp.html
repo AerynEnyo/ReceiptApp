@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Two Column GitHub Page</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+  <style>
+    /* your existing CSS here */
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+    }
+    .sidebar {
+      width: 200px;
+      background-color: #2c3e50;
+      color: white;
+      padding: 20px;
+    }
+    .sidebar button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      background-color: #34495e;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .sidebar button:hover {
+      background-color: #1abc9c;
+    }
+    .content {
+      flex-grow: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f4f4f4;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: white;
+      padding: 20px;
+      width: 400px;
+      border-radius: 8px;
+    }
+    .modal-content input, .modal-content textarea, .modal-content select {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    .modal-content button {
+      margin-top: 10px;
+      padding: 10px;
+      cursor: pointer;
+    }
+    th {
+      cursor: pointer;
+      position: relative;
+    }
+    .sort-indicator::before {
+      content: "▲▼";
+      font-size: 0.7em;
+      color: #aaa;
+      margin-left: 6px;
+    }
+    th.sorted-asc .sort-indicator::before {
+      content: "▲";
+      color: #333;
+    }
+    th.sorted-desc .sort-indicator::before {
+      content: "▼";
+      color: #333;
+    }
+	#download-image {
+	  position: absolute;
+	  top: 5px;
+	  right: 5px;
+	  z-index: 10;
+	  display: none; /* still controlled by JS */
+	  
+	  background-color: white;      /* white background */
+	  padding: 6px 8px;             /* some padding around the icon */
+	  border-radius: 6px;           /* rounded corners */
+	  box-shadow: 0 2px 6px rgba(0,0,0,0.15); /* subtle shadow for depth */
+	  color: #34495e;               /* icon color to match your theme */
+	  font-size: 24px;              /* adjust icon size */
+	  cursor: pointer;
+	  text-decoration: none;        /* remove underline if <a> */
+	  border: none;
+	}
+	#download-image:hover {
+	  background-color: #f0f0f0;   /* slight hover highlight */
+	}
+
+
+
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <button id="btn-receipts">Receipts</button>
+    <button id="btn-reports">Reports</button>
+  </div>
+  <div class="content" id="main-content">
+    <h1>Welcome</h1>
+    <p>Select a page from the sidebar.</p>
+  </div>
+
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <h2>Add/Edit Transaction</h2>
+      <input type="text" id="vendor" placeholder="Vendor Name">
+      <input type="text" id="amount" placeholder="Amount">
+      <select id="method">
+        <option value="">Select Payment Method</option>
+        <option value="Personal Credit">Personal Credit</option>
+        <option value="Business Debit">Business Debit</option>
+        <option value="Business Credit">Business Credit</option>
+        <option value="Cash">Cash</option>
+      </select> 
+
+      <input type="date" id="date">
+      <input type="text" id="invoice" placeholder="Invoice Number">
+      <textarea id="items" placeholder="Items (comma separated)"></textarea>
+      <input type="file" id="receipt-image" accept="image/*">
+      
+	<div style="position: relative; display: inline-block; margin-bottom: 10px;">
+	  <img id="image-preview" style="max-width: 100%; max-height: 150px; display: none; border: 1px solid #ccc; border-radius: 4px;" alt="Receipt Preview">
+	  <a id="download-image" href="#" download class="button-style icon-only" style="display: none; position: absolute; top: 5px; right: 5px; z-index: 10;">
+		⭳
+	  </a>
+	</div>
+
+
+
+      <button id="submit-btn">Submit</button>
+      <button onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyD7RRmxNUJmwV-zGIWBsjnBoiqSYxklScM",
+      authDomain: "receiptapp-14299.firebaseapp.com",
+      projectId: "receiptapp-14299",
+      storageBucket: "receiptapp-14299.firebasestorage.app",
+      messagingSenderId: "132326209159",
+      appId: "1:132326209159:web:e002837b0587acee27aa22"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    db.settings({ experimentalForceLongPolling: true });
+
+    const imageInput = document.getElementById('receipt-image');
+    const imagePreview = document.getElementById('image-preview');
+    const downloadImageBtn = document.getElementById('download-image');
+
+    // Track current image URL (firebase or null)
+    let currentImageDownloadUrl = null;
+    // Track local blob URL for newly selected file
+    let currentLocalBlobUrl = null;
+
+    imageInput.addEventListener('change', () => {
+      const file = imageInput.files[0];
+      if (file) {
+        // Revoke old local blob URL to prevent memory leaks
+        if (currentLocalBlobUrl) {
+          URL.revokeObjectURL(currentLocalBlobUrl);
+          currentLocalBlobUrl = null;
+        }
+        const localUrl = URL.createObjectURL(file);
+        currentLocalBlobUrl = localUrl;
+
+        imagePreview.src = localUrl;
+        imagePreview.style.display = 'block';
+
+        // When new local file chosen, clear firebase URL because image not uploaded yet
+        currentImageDownloadUrl = null;
+        downloadImageBtn.style.display = 'inline-block';
+      } else {
+        imagePreview.src = '';
+        imagePreview.style.display = 'none';
+        downloadImageBtn.style.display = 'none';
+
+        if (currentLocalBlobUrl) {
+          URL.revokeObjectURL(currentLocalBlobUrl);
+          currentLocalBlobUrl = null;
+        }
+        currentImageDownloadUrl = null;
+      }
+    });
+
+    function openModal() {
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('modal').style.display = 'none';
+      clearModalFields();
+      editingDocId = null;
+    }
+
+    function clearModalFields() {
+      document.getElementById('vendor').value = '';
+      document.getElementById('amount').value = '';
+      document.getElementById('method').value = '';
+      document.getElementById('date').value = '';
+      document.getElementById('invoice').value = '';
+      document.getElementById('items').value = '';
+      document.getElementById('receipt-image').value = '';
+
+      imagePreview.src = '';
+      imagePreview.style.display = 'none';
+
+      downloadImageBtn.style.display = 'none';
+
+      if (currentLocalBlobUrl) {
+        URL.revokeObjectURL(currentLocalBlobUrl);
+        currentLocalBlobUrl = null;
+      }
+      currentImageDownloadUrl = null;
+    }
+
+    let editingDocId = null;
+
+    function openEditModal(docId) {
+      editingDocId = docId;
+      db.collection("receipts").doc(docId).get().then(doc => {
+        if (doc.exists) {
+          const data = doc.data();
+          document.getElementById('vendor').value = data.vendor || '';
+          document.getElementById('amount').value = data.amount || '';
+          document.getElementById('method').value = data.method || '';
+          document.getElementById('date').value = data.date || '';
+          document.getElementById('invoice').value = data.invoice || '';
+          document.getElementById('items').value = (data.items || []).join(', ');
+          document.getElementById('receipt-image').value = '';
+
+          if (data.imageUrl) {
+            imagePreview.src = data.imageUrl;
+            imagePreview.style.display = 'block';
+            currentImageDownloadUrl = data.imageUrl;
+            downloadImageBtn.style.display = 'inline-block';
+
+            // If a local blob URL was previously created, revoke it
+            if (currentLocalBlobUrl) {
+              URL.revokeObjectURL(currentLocalBlobUrl);
+              currentLocalBlobUrl = null;
+            }
+          } else {
+            imagePreview.src = '';
+            imagePreview.style.display = 'none';
+            currentImageDownloadUrl = null;
+            downloadImageBtn.style.display = 'none';
+          }
+
+          openModal();
+        }
+      });
+    }
+
+    function submitTransaction() {
+      const vendor = document.getElementById('vendor').value;
+      const amount = document.getElementById('amount').value;
+      const method = document.getElementById('method').value;
+      const date = document.getElementById('date').value;
+      const invoice = document.getElementById('invoice').value;
+      const items = document.getElementById('items').value.split(',').map(i => i.trim());
+      const imageFile = document.getElementById('receipt-image').files[0];
+
+      if (editingDocId) {
+        db.collection("receipts").doc(editingDocId).get().then(doc => {
+          const existingData = doc.data();
+          const existingImageUrl = existingData?.imageUrl || null;
+
+          const saveDoc = (imageUrl) => {
+            const data = { vendor, amount, method, date, invoice, items, imageUrl: imageUrl ?? existingImageUrl };
+            db.collection("receipts").doc(editingDocId).set(data).then(() => {
+              closeModal();
+              loadPage('receipts');
+            });
+          };
+
+          if (imageFile) {
+            const storageRef = firebase.storage().ref('receipts/' + Date.now() + '_' + imageFile.name);
+            storageRef.put(imageFile).then(snapshot => snapshot.ref.getDownloadURL()).then(url => {
+              currentImageDownloadUrl = url; // update current download URL
+              saveDoc(url);
+            }).catch(console.error);
+          } else {
+            saveDoc();
+          }
+        });
+      } else {
+        const saveDoc = (imageUrl) => {
+          const data = { vendor, amount, method, date, invoice, items, imageUrl: imageUrl || null };
+          db.collection("receipts").add(data).then(() => {
+            closeModal();
+            loadPage('receipts');
+          });
+        };
+
+        if (imageFile) {
+          const storageRef = firebase.storage().ref('receipts/' + Date.now() + '_' + imageFile.name);
+          storageRef.put(imageFile).then(snapshot => snapshot.ref.getDownloadURL()).then(url => {
+            currentImageDownloadUrl = url; // update current download URL
+            saveDoc(url);
+          }).catch(console.error);
+        } else {
+          saveDoc();
+        }
+      }
+    }
+
+    const pages = {
+      receipts: `
+        <h1>Receipts</h1>
+        <button id="add-transaction-btn">Add Transaction</button>
+        <table>
+          <thead>
+            <tr>
+              <th onclick="sortTable(0, this)">Vendor Name <span class="sort-indicator"></span></th>
+              <th onclick="sortTable(1, this)">Amount <span class="sort-indicator"></span></th>
+              <th onclick="sortTable(2, this)">Payment Method <span class="sort-indicator"></span></th>
+              <th onclick="sortTable(3, this)">Date <span class="sort-indicator"></span></th>
+              <th onclick="sortTable(4, this)">Invoice Number <span class="sort-indicator"></span></th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="receipt-table-body">
+            <!-- Rows will go here -->
+          </tbody>
+        </table>
+      `,
+      reports: `
+		  <h1>Reports</h1>
+			<label for="vendor-select">Select Vendor:</label>
+			<select id="vendor-select">
+			  <option value="">-- All Vendors --</option>
+			</select>
+			<button id="print-report-btn" style="margin-left: 10px; padding: 6px 12px;">🖨️ Print Report</button>
+			<div id="report-results" style="margin-top:20px;">
+			  <!-- Report results will go here -->
+			</div>
+
+		`
+    };
+
+	function loadReportsPage() {
+	  const mainContent = document.getElementById('main-content');
+	  mainContent.innerHTML = `
+		<h1>Reports</h1>
+
+		<label for="vendor-select">Select Vendor:</label>
+		<select id="vendor-select">
+		  <option value="">-- All Vendors --</option>
+		</select>
+
+		<label for="range-select" style="margin-left:20px;">Select Range:</label>
+		<select id="range-select">
+		  <option value="all">All Dates</option>
+		  <option value="weekly">Weekly (Starting Monday)</option>
+		  <option value="monthly">Monthly</option>
+		  <option value="yearly">Yearly</option>
+		</select>
+
+		<div id="date-picker-container" style="margin-top: 10px;"></div>
+
+
+		<button id="print-report-btn" style="margin-left: 10px; padding: 6px 12px;">🖨️ Print Report</button>
+
+		<div id="report-results" style="margin-top: 20px;"></div>
+	  `;
+
+	  const vendorSelect = document.getElementById('vendor-select');
+	  const rangeSelect = document.getElementById('range-select');
+	  const reportResults = document.getElementById('report-results');
+	  const printBtn = document.getElementById('print-report-btn');
+
+	  // Load unique vendors
+	  db.collection('receipts').get().then(snapshot => {
+		const vendorsSet = new Set();
+		snapshot.forEach(doc => {
+		  const data = doc.data();
+		  if (data.vendor) vendorsSet.add(data.vendor);
+		});
+
+		vendorsSet.forEach(vendor => {
+		  const option = document.createElement('option');
+		  option.value = vendor;
+		  option.textContent = vendor;
+		  vendorSelect.appendChild(option);
+		});
+	  });
+
+	  // Helper: Get start of current week/month/year
+	  
+	function getStartDateAndEndDate(rangeType, selectedDateStr) {
+	  if (rangeType === 'all' || !selectedDateStr) return { startDate: null, endDate: null };
+
+	  let selectedDate;
+
+	  if (rangeType === 'monthly') {
+		const [year, month] = selectedDateStr.split('-').map(Number);
+		selectedDate = new Date(year, month - 1, 1);
+	  } else if (rangeType === 'yearly') {
+		const year = parseInt(selectedDateStr, 10);
+		selectedDate = new Date(year, 0, 1);
+	  } else {
+		selectedDate = new Date(selectedDateStr);
+	  }
+
+	  let start, end;
+
+	  if (rangeType === 'weekly') {
+		const day = selectedDate.getDay();
+		start = new Date(selectedDate);
+		start.setDate(selectedDate.getDate() - day);
+		end = new Date(start);
+		end.setDate(start.getDate() + 6);
+	  } else if (rangeType === 'monthly') {
+		start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+		end = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+	  } else if (rangeType === 'yearly') {
+		start = new Date(selectedDate.getFullYear(), 0, 1);
+		end = new Date(selectedDate.getFullYear(), 11, 31);
+	  }
+
+	  start.setHours(0, 0, 0, 0);
+	  end.setHours(23, 59, 59, 999);
+
+	  return { startDate: start, endDate: end };
+	}
+
+
+
+
+		function updateDatePicker(rangeType) {
+		  const container = document.getElementById('date-picker-container');
+		  container.innerHTML = ''; // Clear previous
+
+		  if (rangeType === 'all') return; // No picker needed
+
+		  let label = '';
+		  let inputType = '';
+		  let inputId = 'date-range-input';
+
+		  if (rangeType === 'weekly') {
+			label = 'Pick a date within the desired week:';
+			inputType = 'date';
+		  } else if (rangeType === 'monthly') {
+			label = 'Pick a month:';
+			inputType = 'month';
+		  } else if (rangeType === 'yearly') {
+			label = 'Pick a year:';
+			inputType = 'number'; // Year input
+		  }
+
+		  const labelEl = document.createElement('label');
+		  labelEl.setAttribute('for', inputId);
+		  labelEl.textContent = label;
+
+		  const inputEl = document.createElement('input');
+		  inputEl.id = inputId;
+		  inputEl.type = inputType;
+		  inputEl.style.marginLeft = '10px';
+
+		  // For yearly input, limit range
+		  if (inputType === 'number') {
+			inputEl.min = '2000';
+			inputEl.max = new Date().getFullYear();
+			inputEl.value = new Date().getFullYear();
+		  }
+
+		  inputEl.addEventListener('change', loadReport);
+		  container.appendChild(labelEl);
+		  container.appendChild(inputEl);
+		}
+
+
+	  // Load the report
+	  function loadReport() {
+		const selectedVendor = vendorSelect.value;
+		const rangeType = rangeSelect.value;
+		const dateInput = document.getElementById('date-range-input');
+		const selectedDateStr = dateInput ? dateInput.value : '';
+		const { startDate, endDate } = getStartDateAndEndDate(rangeType, selectedDateStr);
+
+		let query = db.collection('receipts');
+
+		if (selectedVendor) {
+		  query = query.where('vendor', '==', selectedVendor);
+		}
+
+		query.get().then(snapshot => {
+		  if (snapshot.empty) {
+			reportResults.innerHTML = '<p>No receipts found for the selected filters.</p>';
+			return;
+		  }
+
+		  let totalAmount = 0;
+		  let tableHtml = `
+			<table>
+			  <thead>
+				<tr>
+				  <th>Vendor</th>
+				  <th>Amount</th>
+				  <th>Payment Method</th>
+				  <th>Date</th>
+				  <th>Invoice Number</th>
+				</tr>
+			  </thead>
+			  <tbody>
+		  `;
+
+		  snapshot.forEach(doc => {
+			const r = doc.data();
+			const docDate = new Date(r.date);
+			const amountNum = parseFloat(r.amount) || 0;
+
+			// Filter by date
+			if (!startDate || (docDate >= startDate && docDate <= endDate)) {
+			  totalAmount += amountNum;
+
+			  tableHtml += `
+				<tr>
+				  <td>${r.vendor}</td>
+				  <td>${r.amount}</td>
+				  <td>${r.method}</td>
+				  <td>${r.date}</td>
+				  <td>${r.invoice}</td>
+				</tr>
+			  `;
+			}
+		  });
+
+		  // Check if anything passed the filter
+		  if (totalAmount === 0) {
+			reportResults.innerHTML = '<p>No receipts found in the selected range.</p>';
+			return;
+		  }
+
+		  tableHtml += `
+			<tr style="font-weight: bold; background-color: #f9f9f9;">
+			  <td>Total</td>
+			  <td>${totalAmount.toFixed(2)}</td>
+			  <td></td>
+			  <td></td>
+			  <td></td>
+			</tr>
+		  `;
+
+		  tableHtml += `</tbody></table>`;
+		  reportResults.innerHTML = tableHtml;
+		}).catch(error => {
+		  reportResults.innerHTML = `<p>Error loading report: ${error.message}</p>`;
+		});
+	  }
+
+	  // Event listeners
+	  vendorSelect.addEventListener('change', loadReport);
+		rangeSelect.addEventListener('change', () => {
+		  updateDatePicker(rangeSelect.value);
+		  loadReport();
+		});
+
+
+	  printBtn.addEventListener('click', () => {
+		const reportContent = reportResults.innerHTML;
+		if (!reportContent.trim()) {
+		  alert("No report to print!");
+		  return;
+		}
+
+		const printWindow = window.open('', '', 'width=800,height=600');
+		printWindow.document.write(`
+		  <html>
+		  <head>
+			<title>Print Report</title>
+			<style>
+			  body { font-family: Arial, sans-serif; padding: 20px; }
+			  table { width: 100%; border-collapse: collapse; }
+			  th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+			  th { background-color: #f4f4f4; }
+			  tr:nth-child(even) { background-color: #f9f9f9; }
+			  tr:last-child { font-weight: bold; }
+			</style>
+		  </head>
+		  <body>
+			${reportContent}
+		  </body>
+		  </html>
+		`);
+		printWindow.document.close();
+		printWindow.focus();
+		printWindow.print();
+		printWindow.close();
+	  });
+	}
+
+
+
+	function generateReport(vendor) {
+	  const container = document.getElementById('report-results');
+	  container.innerHTML = '<p>Loading report...</p>';
+
+	  let query = db.collection("receipts");
+	  if (vendor) {
+		query = query.where("vendor", "==", vendor);
+	  }
+
+	  query.get().then(snapshot => {
+		if (snapshot.empty) {
+		  container.innerHTML = '<p>No receipts found for this vendor.</p>';
+		  return;
+		}
+
+		// Build a simple HTML table of results
+		let html = `<table style="width:100%; border-collapse: collapse;">
+		  <thead>
+			<tr>
+			  <th style="border:1px solid #ccc; padding:6px;">Vendor</th>
+			  <th style="border:1px solid #ccc; padding:6px;">Amount</th>
+			  <th style="border:1px solid #ccc; padding:6px;">Method</th>
+			  <th style="border:1px solid #ccc; padding:6px;">Date</th>
+			  <th style="border:1px solid #ccc; padding:6px;">Invoice</th>
+			</tr>
+		  </thead><tbody>`;
+
+		snapshot.forEach(doc => {
+		  const r = doc.data();
+		  html += `<tr>
+			<td style="border:1px solid #ccc; padding:6px;">${r.vendor}</td>
+			<td style="border:1px solid #ccc; padding:6px;">${r.amount}</td>
+			<td style="border:1px solid #ccc; padding:6px;">${r.method}</td>
+			<td style="border:1px solid #ccc; padding:6px;">${r.date}</td>
+			<td style="border:1px solid #ccc; padding:6px;">${r.invoice}</td>
+		  </tr>`;
+		});
+
+		html += '</tbody></table>';
+		container.innerHTML = html;
+	  }).catch(err => {
+		container.innerHTML = '<p>Error loading report: ' + err.message + '</p>';
+	  });
+	}
+
+
+    function loadPage(page) {
+      document.getElementById('main-content').innerHTML = pages[page] || '<p>Page not found.</p>';
+
+      if (page === 'receipts') {
+        document.getElementById('add-transaction-btn').addEventListener('click', () => {
+          editingDocId = null;
+          clearModalFields();
+          openModal();
+        });
+
+        db.collection("receipts").get().then(snapshot => {
+          const tbody = document.getElementById('receipt-table-body');
+          tbody.innerHTML = '';
+          snapshot.forEach(doc => {
+            const r = doc.data();
+            const id = doc.id;
+            const row = `<tr>
+              <td>${r.vendor}</td>
+              <td>${r.amount}</td>
+              <td>${r.method}</td>
+              <td>${r.date}</td>
+              <td>${r.invoice}</td>
+              <td><button class="edit-btn" data-id="${id}">✏️</button>
+                <button onclick="deleteReceipt('${doc.id}')" title="Delete">🗑️</button></td>
+            </tr>`;
+            tbody.insertAdjacentHTML('beforeend', row);
+          });
+
+          document.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const id = btn.getAttribute('data-id');
+              openEditModal(id);
+            });
+          });
+        }).catch(error => {
+          alert("Error loading receipts: " + error.message);
+        });
+      }
+    }
+
+function deleteReceipt(id) {
+  if (confirm("Are you sure you want to delete this receipt?")) {
+    // First get the doc to access imageUrl
+    db.collection("receipts").doc(id).get().then(doc => {
+      if (doc.exists) {
+        const data = doc.data();
+        const imageUrl = data.imageUrl;
+        
+        // Delete the Firestore doc
+        const deleteDoc = () => {
+          db.collection("receipts").doc(id).delete().then(() => {
+            loadPage('receipts');
+          });
+        };
+
+        if (imageUrl) {
+          // Extract the path in storage from the download URL
+          // Firebase download URLs look like:
+          // https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<encoded_path>?alt=media&token=...
+          // We need to get the path after /o/ and before ?alt=media
+          const baseUrl = "https://firebasestorage.googleapis.com/v0/b/" + firebaseConfig.storageBucket + "/o/";
+          const startIndex = imageUrl.indexOf("/o/") + 3;
+          const endIndex = imageUrl.indexOf("?");
+          const fullPathEncoded = imageUrl.substring(startIndex, endIndex);
+          const fullPath = decodeURIComponent(fullPathEncoded); // decode path
+
+          // Delete file from Storage
+          const storageRef = firebase.storage().ref(fullPath);
+          storageRef.delete().then(() => {
+            // File deleted, now delete Firestore doc
+            deleteDoc();
+          }).catch(error => {
+            console.error("Failed to delete image from storage:", error);
+            // Even if image delete fails, still delete the doc to avoid orphaned doc
+            deleteDoc();
+          });
+        } else {
+          // No image URL, just delete doc
+          deleteDoc();
+        }
+      }
+    });
+  }
+}
+
+
+    let currentSort = { column: null, ascending: true };
+
+    function sortTable(columnIndex, header) {
+      const table = document.querySelector("table");
+      const tbody = table.tBodies[0];
+      const rows = Array.from(tbody.rows);
+      const isNumeric = !isNaN(rows[0].cells[columnIndex].innerText);
+
+      const ascending = currentSort.column === columnIndex ? !currentSort.ascending : true;
+      currentSort = { column: columnIndex, ascending };
+
+      const sortedRows = rows.sort((a, b) => {
+        const valA = a.cells[columnIndex].innerText.trim();
+        const valB = b.cells[columnIndex].innerText.trim();
+        const comparison = isNumeric
+          ? parseFloat(valA) - parseFloat(valB)
+          : valA.localeCompare(valB);
+        return ascending ? comparison : -comparison;
+      });
+
+      tbody.innerHTML = '';
+      sortedRows.forEach(row => tbody.appendChild(row));
+
+      document.querySelectorAll("th").forEach(th => {
+        th.classList.remove("sorted-asc", "sorted-desc");
+      });
+
+      header.classList.add(ascending ? "sorted-asc" : "sorted-desc");
+    }
+
+    document.getElementById('btn-receipts').addEventListener('click', () => loadPage('receipts'));
+	document.getElementById('btn-reports').addEventListener('click', () => {
+	  loadReportsPage();
+	});
+
+    document.getElementById('submit-btn').addEventListener('click', submitTransaction);
+
+    downloadImageBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+
+      if (currentImageDownloadUrl) {
+        // Download from Firebase Storage URL (fetch blob)
+        fetch(currentImageDownloadUrl)
+          .then(resp => resp.blob())
+          .then(blob => {
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = 'receipt-image.jpg';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(blobUrl);
+          })
+          .catch(() => alert('Failed to download image'));
+      } else if (currentLocalBlobUrl) {
+        // Download from local blob URL (direct)
+        const a = document.createElement('a');
+        a.href = currentLocalBlobUrl;
+        a.download = 'receipt-image.jpg';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        alert('No image to download');
+      }
+    });
+
+  </script>
+</body>
+</html>
