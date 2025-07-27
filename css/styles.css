@@ -1,0 +1,139 @@
+/* Basic layout */
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  background-color: #2c3e50;
+  color: white;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.sidebar h2 {
+  margin-top: 0;
+}
+
+.sidebar button {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px;
+  background-color: #34495e;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.sidebar button:hover {
+  background-color: #3d566e;
+}
+
+.content {
+  flex-grow: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+th, td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: left;
+}
+
+th {
+  background-color: #f4f4f4;
+  cursor: pointer;
+  user-select: none;
+}
+
+th.sorted-asc::after {
+  content: " ▲";
+}
+
+th.sorted-desc::after {
+  content: " ▼";
+}
+
+/* Modal Styles */
+.modal {
+  display: none; /* Hidden by default */
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  width: 400px;
+  max-width: 90%;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-content input,
+.modal-content select,
+.modal-content textarea {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.image-preview-wrapper {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 10px;
+}
+
+#image-preview {
+  max-width: 100%;
+  max-height: 150px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  display: none;
+}
+
+#download-image {
+  display: none;
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  user-select: none;
+}
+
+button#submit-btn, button#cancel-btn {
+  padding: 10px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button#cancel-btn {
+  background: #ccc;
+  border: none;
+  margin-top: 5px;
+}
+
+/* Report styles */
+#report-results table {
+  margin-top: 10px;
+}

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Two Column GitHub Page</title>
+
+  <!-- Firebase scripts -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+
+  <!-- Your Firebase config -->
+  <script src="js/firebase-config.js"></script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="sidebar">
+    <h2>Receipts</h2>
+    <button id="btn-receipts">Transactions</button>
+    <button id="btn-reports">Reports</button>
+    <h2>Recipes</h2>
+    <button id="btn-recipes">Recipes</button>
+    <button id="btn-ingredients">Ingredients</button>
+  </div>
+
+  <div class="content" id="main-content">
+    <h1>Welcome</h1>
+    <p>Select a page from the sidebar.</p>
+  </div>
+
+  <!-- Modal for Add/Edit Transaction -->
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <h2>Add/Edit Transaction</h2>
+      <input type="text" id="vendor" placeholder="Vendor Name" />
+      <input type="text" id="amount" placeholder="Amount" />
+      <select id="method">
+        <option value="">Select Payment Method</option>
+        <option value="Personal Credit">Personal Credit</option>
+        <option value="Business Debit">Business Debit</option>
+        <option value="Business Credit">Business Credit</option>
+        <option value="Cash">Cash</option>
+      </select>
+      <input type="date" id="date" />
+      <input type="text" id="invoice" placeholder="Invoice Number" />
+      <textarea id="items" placeholder="Ingredient: Size: Price (one per line)"></textarea>
+      <input type="file" id="receipt-image" accept="image/*" capture="environment" />
+
+
+      <div class="image-preview-wrapper">
+        <img id="image-preview" alt="Receipt Preview" />
+        <button id="download-image" title="Download Image">⭳</button>
+      </div>
+
+      <button id="submit-btn">Submit</button>
+      <button id="cancel-btn">Cancel</button>
+    </div>
+  </div>
+  
+	<!-- Modal for Add/Edit Recipe -->
+	<div class="modal" id="recipe-modal" style="display:none; position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:1001;">
+	  <div class="modal-content" style="background: white; padding: 20px; width: 400px; max-width: 90%; border-radius: 8px; display: flex; flex-direction: column; gap: 10px;">
+		<h2>Add/Edit Recipe</h2>
+
+		<!-- ?? Add this wrapper div -->
+		<div id="recipe-form">
+		  <input type="text" id="recipe-name" placeholder="Recipe Name" />
+		  <textarea id="recipe-description" placeholder="Recipe Description"></textarea>
+		  <textarea id="recipe-items" placeholder="Enter ingredients here, e.g. Flour: 2 cups"></textarea>
+		  <label for="material-cost">Material Cost:</label>
+		  <input type="text" id="material-cost" readonly />
+		  <button id="recipe-submit-btn">Save</button>
+		  <button id="recipe-cancel-btn">Cancel</button>
+		</div>
+
+	  </div>
+	</div>
+
+
+
+
+  <script src="js/dom.js"></script>
+  <script src="js/main.js"></script>  
+  <script src="js/ingredients.js"></script>
+  <script src="js/receipts.js"></script>
+  <script src="js/reports.js"></script>
+  <script src="js/transactions.js"></script>
+  <script src="js/sidebar.js"></script>  
+  <script src="js/recipes.js"></script>
+</body>
+</html>
