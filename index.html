@@ -24,6 +24,12 @@
     <h2>Recipes</h2>
     <button id="btn-recipes">Recipes</button>
     <button id="btn-ingredients">Ingredients</button>
+	<h2>Tools</h2>
+	<button id="btn-Utensils">Utensils</button>
+	<button id="btn-Packaging">Packaging</button>
+	<h2>Nutrition</h2>
+	<button id="btn-IngredientInfo">Ingredient Info</button>
+	<button id="btn-RecipeInfo">Recipe Info</button>
   </div>
 
   <div class="content" id="main-content">
@@ -36,7 +42,7 @@
     <div class="modal-content">
       <h2>Add/Edit Transaction</h2>
       <input type="text" id="vendor" placeholder="Vendor Name" />
-      <input type="text" id="amount" placeholder="Amount" />
+      <input type="text" id="amount" placeholder="Amount" readonly />
       <select id="method">
         <option value="">Select Payment Method</option>
         <option value="Personal Credit">Personal Credit</option>
@@ -46,7 +52,7 @@
       </select>
       <input type="date" id="date" />
       <input type="text" id="invoice" placeholder="Invoice Number" />
-      <textarea id="items" placeholder="Ingredient: Size: Price (one per line)"></textarea>
+      <textarea id="items" placeholder="Ingredient: Size: Price (one per line)" rows="16"></textarea>
       <input type="file" id="receipt-image" accept="image/*" capture="environment" />
 
 
@@ -72,6 +78,35 @@
 		  <textarea id="recipe-items" placeholder="Enter ingredients here, e.g. Flour: 2 cups"></textarea>
 		  <label for="material-cost">Material Cost:</label>
 		  <input type="text" id="material-cost" readonly />
+		  <label for="retailCost">Retail Cost:</label>
+		  <input type="text" id="retailCost" readonly />
+		  <label for="storePrice">Store Price</label>
+<input type="text" id="storePrice" readonly />
+
+		  <label>
+			  Number of Cookies:
+			  <input type="number" id="num-cookies" min="0">
+			</label>
+
+			<label>
+			  Cookies Per Tray:
+			  <input type="number" id="cookies-per-tray" min="1">
+			</label>
+
+			<div style="display: flex; gap: 10px; align-items: end;">
+			  <label style="flex: 1;">
+				Trays Made:
+				<input type="number" id="trays-made" readonly style="width: 100%;">
+			  </label>
+			  <label style="flex: 1;">
+				Remaining Cookies:
+				<input type="number" id="remaining-cookies" readonly style="width: 100%;">
+			  </label>
+			</div>
+			<div id="packaging-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 8px; margin-top: 10px;">
+			  <h4>Packaging Materials</h4>
+			  <!-- Packaging checkboxes will go here -->
+			</div>
 		  <button id="recipe-submit-btn">Save</button>
 		  <button id="recipe-cancel-btn">Cancel</button>
 		</div>
@@ -90,5 +125,7 @@
   <script src="js/transactions.js"></script>
   <script src="js/sidebar.js"></script>  
   <script src="js/recipes.js"></script>
+  <script src="js/tools.js"></script>
+  <script src="js/nutrition-info.js"></script>
 </body>
 </html>

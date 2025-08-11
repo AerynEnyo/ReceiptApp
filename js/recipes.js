@@ -65,9 +65,12 @@ const teaspoons = parseFloat(ingredient.teaspoons) || 1;
     }
 
     const lineCost = pricePerUnit * parsed.quantity;
+	console.log(`Ingredient: ${parsed.name}, Quantity: ${parsed.quantity} ${parsed.unit}, Price per unit: $${pricePerUnit.toFixed(4)}, Line cost: $${lineCost.toFixed(4)}`);
+
 
     totalCost += lineCost;
   }
+  console.log(`Total material cost calculated: $${totalCost.toFixed(2)}`);
 
   dom.materialCost.value = `$${totalCost.toFixed(2)}`;
 
@@ -86,6 +89,7 @@ async function loadRecipesPage() {
           <th>Recipe Name</th>
           <th>Material Cost</th>
           <th>Retail Cost</th>
+		  <th>Store Price</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -109,7 +113,9 @@ async function loadRecipesPage() {
       tr.innerHTML = `
         <td>${data.name || ''}</td>
         <td>${data.materialCost !== undefined ? `$${data.materialCost.toFixed(2)}` : ''}</td>
-        <td></td>
+        <td>${data.retailCost !== undefined ? `$${data.retailCost.toFixed(2)}` : ''}</td>
+<td>${data.storePrice !== undefined ? `$${data.storePrice.toFixed(2)}` : ''}</td>
+
         <td>
           <button class="edit-recipe-btn" data-id="${id}">✏️</button>
           <button class="delete-recipe-btn" data-id="${id}">🗑️</button>
@@ -138,7 +144,7 @@ async function loadRecipesPage() {
   }).catch(err => alert('Failed to load recipes: ' + err.message));
 }
 
-function openRecipeModal(docId) {
+async function openRecipeModal(docId) {
   editingDocId = docId;
 
   dom.recipeModal.style.display = 'flex';
@@ -147,6 +153,8 @@ function openRecipeModal(docId) {
   dom.recipeDescription = document.getElementById('recipe-description');
   dom['recipe-items'] = document.getElementById('recipe-items'); // changed here
   dom.materialCost = document.getElementById('material-cost');
+  dom.retailCost = document.getElementById('retailCost');
+
 
   if (!dom['recipe-items']) {
     console.error('❌ Could not find #recipe-items textarea');
@@ -154,30 +162,83 @@ function openRecipeModal(docId) {
   }
 
   if (docId) {
-    db.collection('recipes').doc(docId).get().then(doc => {
-      if (!doc.exists) return alert('Recipe not found.');
+  const doc = await db.collection('recipes').doc(docId).get();
+  if (!doc.exists) return alert('Recipe not found.');
 
-      const data = doc.data();
-      dom.recipeName.value = data.name || '';
-      dom.recipeDescription.value = data.description || '';
-      dom['recipe-items'].value = data.items
-        ? data.items.map(i => `${i.name}: ${i.size}`).join('\n')
-        : '';
-      dom.materialCost.value = data.materialCost !== undefined
-        ? `$${data.materialCost.toFixed(2)}`
-        : '';
-      calculateMaterialCost().catch(console.error);
-    });
+  const data = doc.data();
+  dom.recipeName.value = data.name || '';
+  dom.recipeDescription.value = data.description || '';
+  dom['recipe-items'].value = data.items
+    ? data.items.map(i => `${i.name}: ${i.size}`).join('\n')
+    : '';
+  dom.materialCost.value = data.materialCost !== undefined
+    ? `$${data.materialCost.toFixed(2)}`
+    : '';
+  
+  dom.numCookies.value = data.numCookies || '';
+  dom.cookiesPerTray.value = data.cookiesPerTray || '';
+  dom.traysMade.value = (data.numCookies && data.cookiesPerTray)
+    ? (data.numCookies / data.cookiesPerTray).toFixed(2)
+    : '';
+  dom.remainingCookies.value = (data.remainingCookies != null)
+    ? data.remainingCookies
+    : '';
+
+  await calculateMaterialCost();
+  await loadPackagingListForModal();
+  setupPackagingCheckboxListeners();
+  
+  if (data.selectedPackaging && Array.isArray(data.selectedPackaging)) {
+  dom.packagingList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.checked = data.selectedPackaging.includes(cb.dataset.id);
+  });
+
+  // Trigger change event on checkboxes to update retail cost field
+  const event = new Event('change');
+  dom.packagingList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.dispatchEvent(event);
+  });
+}
+
+  
   } else {
     dom.recipeName.value = '';
     dom.recipeDescription.value = '';
     dom['recipe-items'].value = '';
     dom.materialCost.value = '';
+	dom.numCookies.value = '';
+    dom.cookiesPerTray.value = '';
+    dom.traysMade.value = '';
+	dom.remainingCookies.value = '';
   }
 
   dom['recipe-items'].addEventListener('input', () => {
     calculateMaterialCost().catch(console.error);
   });
+  
+function updateTraysMade() {
+  const cookies = parseFloat(dom.numCookies.value);
+  const perTray = parseFloat(dom.cookiesPerTray.value);
+
+  if (!isNaN(cookies) && !isNaN(perTray) && perTray !== 0) {
+    dom.traysMade.value = Math.floor(cookies / perTray);
+    dom.remainingCookies.value = cookies % perTray;
+  } else {
+    dom.traysMade.value = '';
+    dom.remainingCookies.value = '';
+  }
+
+  // ✅ Now this works because updateCosts is globally defined
+  updateCosts();
+}
+
+
+
+
+
+	dom.numCookies.addEventListener('input', updateTraysMade);
+	dom.cookiesPerTray.addEventListener('input', updateTraysMade);
+	updateCosts();
 }
 
 function closeRecipeModal() {
@@ -204,6 +265,16 @@ async function saveRecipe() {
   }
 
   const lines = itemsText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const numCookies = parseFloat(dom.numCookies.value);
+  const cookiesPerTray = parseFloat(dom.cookiesPerTray.value);
+  const traysMade = (!isNaN(numCookies) && !isNaN(cookiesPerTray) && cookiesPerTray !== 0)
+    ? numCookies / cookiesPerTray
+    : null;
+  const remainingCookies = (!isNaN(numCookies) && !isNaN(cookiesPerTray) && cookiesPerTray !== 0)
+	  ? Math.floor(numCookies % cookiesPerTray)
+	  : null;
+
+
 
   const lineRegex = /^(.+):\s*([\d\s\/.]+)\s*(cups?|tablespoons?|teaspoons?)$/i;
 
@@ -251,12 +322,30 @@ async function saveRecipe() {
     materialCost = 0;  // fallback to 0 on error
   }
 
+  const selectedPackaging = [];
+  dom.packagingList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    if (cb.checked) {
+      selectedPackaging.push(cb.dataset.id);
+    }
+  });
+  const storePrice = parseFloat(dom.storePrice.value.replace('$', '')) || 0;
+const retailCost = parseFloat(dom.retailCost.value.replace('$', '')) || 0;
   const data = {
     name,
     description,
     materialCost,
+	retailCost,
+	storePrice,
     items,
+	numCookies,
+    cookiesPerTray,
+    traysMade,
+	remainingCookies,
+	selectedPackaging,
   };
+  
+
+
 
   try {
     if (editingDocId) {
@@ -303,5 +392,69 @@ function evalFraction(fracStr) {
   if (denominator === 0) return null;
   return numerator / denominator;
 }
+
+async function loadPackagingListForModal() {
+  dom.packagingList.innerHTML = '';  // Clear existing
+
+  const snapshot = await db.collection('packaging').get();
+
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    const id = doc.id;
+
+    const price = parseFloat(data.price) || 0;
+    const quantity = parseFloat(data.quantity) || 0;
+    const pricePer = (quantity > 0) ? (price / quantity) : 0;
+    const type = data.type || '';
+
+    const label = document.createElement('label');
+    label.style.display = 'block';
+    label.style.marginBottom = '4px';
+    label.innerHTML = `
+      <input type="checkbox" data-id="${id}" data-price="${pricePer.toFixed(2)}" />
+      ${type} ($${pricePer.toFixed(2)})
+    `;
+
+    dom.packagingList.appendChild(label);
+  });
+}
+
+
+function setupPackagingCheckboxListeners() {
+  if (!dom.packagingList) return;
+
+  dom.packagingList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', updateCosts);
+  });
+
+  updateCosts();
+}
+
+function updateCosts() {
+  const materialCost = parseFloat(dom.materialCost.value.replace('$', '')) || 0;
+  const trays = parseFloat(dom.traysMade.value) || 1;
+
+  let packagingSum = 0;
+  if (dom.packagingList) {
+    dom.packagingList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      if (cb.checked) {
+        packagingSum += parseFloat(cb.dataset.price) || 0;
+      }
+    });
+  }
+
+  // Retail cost calculation: ( (materialCost / trays) + packagingSum ) * 2 * 1.3
+  const retailTotal = (((materialCost / trays) + packagingSum) * 2) * 1.3;
+  dom.retailCost.value = `$${retailTotal.toFixed(2)}`;
+
+  // Store price calculation: ( (materialCost / trays) + packagingSum ) * 1.5 * 1.3
+  const storeTotal = (((materialCost / trays) + packagingSum) * 1.5) * 1.3;
+  dom.storePrice.value = `$${storeTotal.toFixed(2)}`;
+}
+
+
+
+
+
 
 dom.recipeSubmitBtn.addEventListener('click', saveRecipe);

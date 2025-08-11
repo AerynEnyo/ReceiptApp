@@ -1,39 +1,34 @@
 // ingredients.js
 
 async function addIngredients(ingredients) {
+  const existingSnapshot = await db.collection('ingredients').get();
+  const existingMap = {};
+  existingSnapshot.forEach(doc => {
+    const data = doc.data();
+    if (data.name) {
+      existingMap[data.name.toLowerCase()] = true;
+    }
+  });
+
   const batch = db.batch();
   for (const ing of ingredients) {
-    const querySnapshot = await db.collection('ingredients').where('name', '==', ing.name).get();
-    if (querySnapshot.empty) {
+    const nameKey = ing.name.toLowerCase();
+    if (!existingMap[nameKey]) {
       const docRef = db.collection('ingredients').doc();
-      batch.set(docRef, { name: ing.name, size: ing.size, price: ing.price });
-    } else {
-      let highestPriceDoc = null;
-      let highestPrice = -Infinity;
-      querySnapshot.forEach(doc => {
-        const data = doc.data();
-        const priceNum = parseFloat(data.price);
-        if (priceNum > highestPrice) {
-          highestPrice = priceNum;
-          highestPriceDoc = doc;
-        }
+      batch.set(docRef, {
+        name: ing.name,
+        size: ing.size,
+        price: ing.price
       });
-
-      const newPrice = parseFloat(ing.price);
-      if (newPrice > highestPrice) {
-        batch.update(highestPriceDoc.ref, { size: ing.size, price: ing.price });
-        querySnapshot.forEach(doc => {
-          if (doc.id !== highestPriceDoc.id) {
-            batch.delete(doc.ref);
-          }
-        });
-      }
+      existingMap[nameKey] = true; // avoid duplicate inserts in the same run
     }
   }
+
   await batch.commit();
 }
 
-function loadIngredientsPage() {
+
+async function loadIngredientsPage() {
   currentPage = 'ingredients';
 
   dom.mainContent.innerHTML = `
@@ -57,6 +52,23 @@ function loadIngredientsPage() {
       <tbody id="ingredients-table-body"></tbody>
     </table>
   `;
+  
+  // Fetch all utensil names
+	const utensilSnapshot = await db.collection('utensils').get();
+	const utensilNames = new Set();
+	utensilSnapshot.forEach(doc => {
+	  const name = doc.data().name;
+	  if (name) utensilNames.add(name.toLowerCase());
+	});
+
+	// Fetch all packaging types
+	const packagingSnapshot = await db.collection('packaging').get();
+	const packagingTypes = new Set();
+	packagingSnapshot.forEach(doc => {
+	  const type = doc.data().type;
+	  if (type) packagingTypes.add(type.toLowerCase());
+	});
+
 
   const deleteAllBtn = document.getElementById('delete-all-ingredients-btn');
   if (deleteAllBtn) {
@@ -108,6 +120,11 @@ function loadIngredientsPage() {
       snapshot.forEach(doc => {
         const data = doc.data();
         const nameKey = (data.name || '').toLowerCase();
+		if (utensilNames.has(nameKey) || packagingTypes.has(nameKey)) {
+		  // Skip this ingredient because it's already in utensils or packaging
+		  return;
+}
+
         const price = parseFloat(data.price) || 0;
 
         if (!ingredientMap[nameKey] || price > ingredientMap[nameKey].price) {
@@ -126,7 +143,9 @@ function loadIngredientsPage() {
 	  window.ingredientTable = ingredientMap;
 
 
-      Object.values(ingredientMap).forEach(ingredient => {
+		Object.values(ingredientMap)
+		  .sort((a, b) => a.name.localeCompare(b.name))
+		  .forEach(ingredient => {
         const tr = document.createElement('tr');
 		tr.setAttribute('data-name', ingredient.name.toLowerCase());
         const cups = ingredient.cups;
@@ -153,7 +172,9 @@ function loadIngredientsPage() {
           <td><input type="number" step="0.01" class="unit-input" data-id="${ingredient.id}" data-unit="teaspoons" value="${ingredient.teaspoons || ''}"></td>
           <td id="teaspoons-price-${ingredient.id}">${teaspoonPrice ? `$${teaspoonPrice}` : ''}</td>
 
-          <td><button class="delete-ingredient-btn" data-id="${ingredient.id}">🗑️</button></td>
+          <td><button class="delete-ingredient-btn" data-id="${ingredient.id}">🗑️</button>
+		  <button class="move-to-packaging-btn" data-id="${ingredient.id}">➡️ Packaging</button>
+		  <button class="move-to-utensils-btn" data-id="${ingredient.id}">➡️ Utensils</button></td>
         `;
         tbody.appendChild(tr);
       });
@@ -220,6 +241,65 @@ function loadIngredientsPage() {
           }
         });
       });
+		// Move to Packaging button
+		tbody.querySelectorAll('.move-to-packaging-btn').forEach(btn => {
+		  btn.addEventListener('click', async () => {
+			const id = btn.dataset.id;
+			if (!confirm('Move this ingredient to Packaging?')) return;
+
+			try {
+			  const docRef = db.collection('ingredients').doc(id);
+			  const doc = await docRef.get();
+			  if (!doc.exists) {
+				alert('Ingredient not found');
+				return;
+			  }
+			  const data = doc.data();
+			  await db.collection('packaging').add({
+				  type: data.name || '',
+				  quantity: data.size || '',
+				  price: data.price || 0
+				});
+
+			  await docRef.delete();
+			  await new Promise(resolve => setTimeout(resolve, 500));
+			  alert('Moved to Packaging successfully');
+			  loadIngredientsPage();
+			} catch (err) {
+			  alert('Failed to move to Packaging: ' + err.message);
+			  console.error(err);
+			}
+		  });
+		});
+
+		// Move to Utensils button
+		tbody.querySelectorAll('.move-to-utensils-btn').forEach(btn => {
+		  btn.addEventListener('click', async () => {
+			const id = btn.dataset.id;
+			if (!confirm('Move this ingredient to Utensils?')) return;
+
+			try {
+			  const docRef = db.collection('ingredients').doc(id);
+			  const doc = await docRef.get();
+			  if (!doc.exists) {
+				alert('Ingredient not found');
+				return;
+			  }
+			  const data = doc.data();
+			  await db.collection('utensils').add({
+				  name: data.name || '',
+				  quantity: data.size || '',
+				  condition: 'Good'  // you can change this default if you want
+				});
+			  await docRef.delete();
+			  alert('Moved to Utensils successfully');
+			  loadIngredientsPage();
+			} catch (err) {
+			  alert('Failed to move to Utensils: ' + err.message);
+			  console.error(err);
+			}
+		  });
+		});
 
     })
     .catch(err => alert('Failed to load ingredients: ' + err.message));

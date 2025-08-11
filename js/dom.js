@@ -1,4 +1,3 @@
-  // Cache DOM elements and expose globally
   window.dom = {
     btnReceipts: document.getElementById('btn-receipts'),
     btnReports: document.getElementById('btn-reports'),
@@ -24,4 +23,15 @@
 	recipeCancelBtn: document.getElementById('recipe-cancel-btn'),
 	recipeForm: document.getElementById('recipe-form'),
 	materialCost: document.getElementById('material-cost'),
+	numCookies: document.getElementById('num-cookies'),
+	cookiesPerTray: document.getElementById('cookies-per-tray'),
+	traysMade: document.getElementById('trays-made'),
+	remainingCookies: document.getElementById('remaining-cookies'),
+	btnUtensils: document.getElementById('btn-Utensils'),
+    btnPackaging: document.getElementById('btn-Packaging'),
+	packagingList: document.getElementById('packaging-list'),
+	retailCost: document.getElementById('retailCost'),
+	storePrice:  document.getElementById('storePrice'),
+	btnIngredientInfo: document.getElementById('btn-IngredientInfo'),
+    btnRecipeInfo: document.getElementById('btn-RecipeInfo'),
   };

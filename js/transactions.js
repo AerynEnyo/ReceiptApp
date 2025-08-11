@@ -59,6 +59,27 @@
       .then(snapshot => snapshot.ref.getDownloadURL());
   }
 
+dom.items.addEventListener('input', () => {
+  let total = 0;
+
+  const lines = dom.items.value.split('\n');
+
+  for (let line of lines) {
+    const parts = line.split(':').map(p => p.trim());
+
+    if (parts.length < 3) continue; // Skip invalid lines
+
+    const price = parseFloat(parts[2]);
+
+    if (!isNaN(price)) {
+      total += price;
+    }
+  }
+
+  dom.amount.value = total.toFixed(2);
+});
+
+
   // Submit transaction
   dom.submitBtn.addEventListener('click', async () => {
 	  const vendor = dom.vendor.value.trim();
